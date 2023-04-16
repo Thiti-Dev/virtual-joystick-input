@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Canvas Test</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <button style="width: 300px;height: 100px;" onclick="enableDeadStright()">Dead Straight</button>
+    <p id="dt" style="font-size: 50px;color: red;">OFF</p>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        //const socket = new WebSocket("ws://localhost:8765");
+        const socket = new WebSocket("ws://192.168.1.44:8765");
+
+        const canvas = document.getElementById("canvas");
+        const context = canvas.getContext("2d");
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight/2;
+
+        canvas.style.position = "absolute";
+        canvas.style.top = "50%";
+        canvas.style.left = "50%";
+        canvas.style.transform = "translate(-50%, -50%)";
+
+        let isDrawing = false;
+        let dtEnable = false;
+
+        function enableDeadStright(){
+            const p = document.getElementById("dt")
+            p.innerText = dtEnable ? "OFF" : "ON"
+            p.style.color = dtEnable ? "red" : "green"
+            dtEnable = !dtEnable
+        }
+
+
+        function drawAimPoint(){
+            let dotSize = Math.min(canvas.width, canvas.height) * 0.03;
+            let centerX = canvas.width / 2;
+            let centerY = canvas.height / 2;
+            let topX = centerX;
+            let topY = dotSize;
+            let bottomX = centerX;
+            let bottomY = canvas.height - dotSize;
+            let leftX = dotSize;
+            let leftY = centerY;
+            let rightX = canvas.width - dotSize;
+            let rightY = centerY;
+
+            context.beginPath();
+            context.arc(centerX, centerY, dotSize / 2, 0, 2 * Math.PI);
+            context.fillStyle = "#000000";
+            context.fill();
+
+            context.beginPath();
+            context.arc(topX, topY, dotSize / 2, 0, 2 * Math.PI);
+            context.fillStyle = "#000000";
+            context.fill();
+
+            context.beginPath();
+            context.arc(bottomX, bottomY, dotSize / 2, 0, 2 * Math.PI);
+            context.fillStyle = "#000000";
+            context.fill();
+
+            context.beginPath();
+            context.arc(leftX, leftY, dotSize / 2, 0, 2 * Math.PI);
+            context.fillStyle = "#000000";
+            context.fill();
+
+            context.beginPath();
+            context.arc(rightX, rightY, dotSize / 2, 0, 2 * Math.PI);
+            context.fillStyle = "#000000";
+            context.fill();
+
+
+        }
+
+        // translation due to the actual content size is not match with the canvas size (because our canvas size is 50% of the screen and it gets centered) 
+        function translatedX(x){
+            var rect = canvas.getBoundingClientRect();
+            var factor = canvas.width / rect.width;
+            return factor * (x - rect.left);
+        }
+
+        function translatedY(y){
+            var rect = canvas.getBoundingClientRect();
+            var factor = canvas.width / rect.width;
+            return factor * (y - rect.top);
+        }
+        // #end translation
+
+        function startDrawing(event) {
+            isDrawing = true;
+            const x = translatedX(event.clientX);
+            const y = translatedY(event.clientY);
+
+            context.strokeStyle = "red"; // set the stroke color to black
+            context.lineWidth  = 5;
+            context.beginPath();
+            context.moveTo(dtEnable ? canvas.width/2 : x, y);
+
+            console.log(`Started drawing at (\${x}, \${y})`);
+        }
+
+        // line connected mode
+        function draw(event) {
+            if (!isDrawing) {
+                return;
+            }
+
+            const x = translatedX(event.clientX);
+            const y = translatedY(event.clientY);
+
+            let percentageX = x/canvas.width*100
+            let percentageY = y/canvas.height*100
+
+
+            context.lineTo(dtEnable ? canvas.width/2 : x, y);
+            context.stroke();
+
+            console.log(`Drawing at (${percentageX},  ${percentageY})`);
+
+
+            if(typeof x !=="number" && typeof y !== "number")return
+            if(percentageX > 100) percentageX = 100;
+            else if(percentageX < 0) percentageX = 0;
+
+            if(percentageY > 100) percentageY = 100;
+            else if(percentageY < 0) percentageY = 0;
+            
+
+            socket.send(JSON.stringify({x:dtEnable ? 50 : percentageX,y:percentageY}))
+        }
+
+        function stopDrawing(event) {
+             isDrawing = false;
+             context.clearRect(0, 0, canvas.width, canvas.height);
+             socket.send(JSON.stringify({x:50,y:50}))
+             drawAimPoint()
+        }
+
+
+        canvas.addEventListener("mousedown", startDrawing);
+        canvas.addEventListener("mousemove", draw);
+        canvas.addEventListener("mouseup", stopDrawing);
+        canvas.addEventListener("mouseout", stopDrawing);
+
+        canvas.addEventListener("touchmove", function (e) {
+            var touch = e.touches[0];
+            var mouseEvent = new MouseEvent("mousemove", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }, false);
+
+        canvas.addEventListener("touchstart", function (e) {
+            var touch = e.touches[0];
+            var mouseEvent = new MouseEvent("mousedown", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        }, false);
+
+        canvas.addEventListener("touchend", stopDrawing, false);
+
+        drawAimPoint() // initial
+
+    </script>
+</body>
+</html>
